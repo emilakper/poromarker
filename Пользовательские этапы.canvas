@@ -1,0 +1,25 @@
+{
+	"nodes":[
+		{"id":"cb09b797528432ec","type":"group","x":-2900,"y":-320,"width":700,"height":100,"color":"4","label":"Данные"},
+		{"id":"9edc85c053b99819","type":"group","x":-2060,"y":-320,"width":680,"height":100,"color":"3","label":"Разметка"},
+		{"id":"40f880f9148395a3","type":"group","x":-1280,"y":-320,"width":590,"height":100,"color":"1","label":"Взаимодействие с разметкой"},
+		{"id":"45235850f671718e","type":"text","text":"Приложение (UI)","x":-1840,"y":500,"width":210,"height":60,"color":"6"},
+		{"id":"f6f7852fadadbf40","type":"text","text":"Ручные инструменты","x":-2040,"y":-300,"width":230,"height":60},
+		{"id":"86d43436d3bed405","type":"text","text":"Полуавтоматическая разметка","x":-1650,"y":-300,"width":250,"height":60},
+		{"id":"3feb825a34107e77","type":"text","text":"проверка","x":-1260,"y":-300,"width":250,"height":60},
+		{"id":"a0f0514355ed5f4f","type":"text","text":"анализ","x":-960,"y":-300,"width":250,"height":60},
+		{"id":"723734bc228e8e01","type":"text","text":"Визуализация результата","x":-960,"y":-100,"width":250,"height":50,"color":"6"},
+		{"id":"ccb3016002c86831","type":"text","text":"хранение","x":-2480,"y":-300,"width":250,"height":60},
+		{"id":"175f5bb83e9bb2e5","type":"text","text":"загрузка","x":-2860,"y":-300,"width":250,"height":60},
+		{"id":"66be515464263f61","x":-3079,"y":200,"width":779,"height":460,"type":"file","file":"Договоренности внутри команды.md"}
+	],
+	"edges":[
+		{"id":"81539d9975bac2a2","fromNode":"a0f0514355ed5f4f","fromSide":"bottom","toNode":"723734bc228e8e01","toSide":"top","color":"5"},
+		{"id":"3fe6137e6040cf83","fromNode":"9edc85c053b99819","fromSide":"right","toNode":"40f880f9148395a3","toSide":"left","color":"5"},
+		{"id":"b06b25f9707e132f","fromNode":"cb09b797528432ec","fromSide":"right","toNode":"9edc85c053b99819","toSide":"left","color":"5"},
+		{"id":"9dcbbb117578ba33","fromNode":"723734bc228e8e01","fromSide":"bottom","toNode":"45235850f671718e","toSide":"right","color":"6","label":"графики, рисунки, все что придумаем"},
+		{"id":"a65cb9d779621835","fromNode":"3feb825a34107e77","fromSide":"bottom","toNode":"45235850f671718e","toSide":"top","color":"6","label":"сообщения об ошибке"},
+		{"id":"654c15af8bdab698","fromNode":"9edc85c053b99819","fromSide":"bottom","toNode":"45235850f671718e","toSide":"top","color":"6","label":"визуал разметки"},
+		{"id":"3130aea5594313b0","fromNode":"cb09b797528432ec","fromSide":"bottom","toNode":"45235850f671718e","toSide":"top","color":"6","label":"кнопки для загрузки или смены порядка файлов"}
+	]
+}
