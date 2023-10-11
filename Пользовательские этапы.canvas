@@ -9,7 +9,7 @@
 		{"id":"3feb825a34107e77","type":"text","text":"проверка","x":-1260,"y":-300,"width":250,"height":60},
 		{"id":"ccb3016002c86831","type":"text","text":"хранение","x":-2480,"y":-300,"width":250,"height":60},
 		{"id":"175f5bb83e9bb2e5","type":"text","text":"загрузка","x":-2860,"y":-300,"width":250,"height":60},
-		{"id":"66be515464263f61","type":"file","file":"Договоренности внутри команд.md","x":-3079,"y":200,"width":724,"height":800},
+		{"id":"66be515464263f61","type":"file","file":"README.md","x":-3079,"y":200,"width":724,"height":800},
 		{"id":"a0f0514355ed5f4f","type":"text","text":"анализ","x":-960,"y":-300,"width":250,"height":60},
 		{"id":"723734bc228e8e01","type":"text","text":"Визуализация результата","x":-960,"y":-100,"width":250,"height":50,"color":"6"}
 	],
