@@ -8,7 +8,7 @@
 | Загрузка данных                                                     | None      |                                                                            |
 | Хранение данных                                                     | Егор      |                                                                            |
 | Полуавтоматическая разметка (первичная)                             | Александр | https://github.com/s4salo/misis2023f-22-04-gavrilyuk-a-v                   |
-| Проверка разметки (поры)                                            | Ирина     |                                                                            |
+| Проверка разметки (поры)                                            | Ирина     | https://github.com/RomadovaIrina/misis2023f-22-04-romadova-i-o             |
 | Анализ разметки (подсчет характеристик пор)                         | Максим Г  | https://github.com/Maksim-Goncharovskiy/misis2023f-22-04-goncharovskiy-m-n |
 | Анализ разметки (подсчет характеристик дых путей)                   | Данила    |                                                                            |
 | UI (для визуализаций пор, окна, всплывающие ошибки и т.п.)          | Иван      | https://github.com/Maximov-Ivan/misis2023f-22-04-maximov-i-d               |
