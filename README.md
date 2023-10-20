@@ -12,7 +12,7 @@
 | Анализ разметки (подсчет характеристик пор)                         | Максим Г  | https://github.com/Maksim-Goncharovskiy/misis2023f-22-04-goncharovskiy-m-n |
 | Анализ разметки (подсчет характеристик дых путей)                   | Данила    |                                                                            |
 | UI (для визуализаций пор, окна, всплывающие ошибки и т.п.)          | Иван      | https://github.com/Maximov-Ivan/misis2023f-22-04-maximov-i-d               |
-| Визуализация (для дыхат путей, 3д)                                  | Николай   |                                                                            |
+| Визуализация (для дыхат путей, 3д)                                  | Николай   | https://github.com/DR-Felix/misis2023f-22-01-shestakov-n-a                                                                          
 | Визуализация (для дыхат путей, инструменты просмотра 3д)            | Полина    | https://github.com/GorokhovaPolina/misis2023f-22-01-gorokhova-p-a          |
 | UI (общее окно, строка меню, панель инструментов)                   | Эмиль     | https://github.com/emilakper/misis2023f-22-04-akperov-e-b                  |
 | UI (для визуализация 3д, окна, ошибки, кнопки навигации и т.п.)     | None      |                                                                            |
