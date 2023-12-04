@@ -32,3 +32,5 @@
 *.app
 
 *.obsidian
+/out
+/.vs
