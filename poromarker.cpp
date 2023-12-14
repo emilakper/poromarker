@@ -13,6 +13,8 @@
 #include <filesystem>
 #include <stdexcept>
 #include <ImageProcessor/ImageProcessor.hpp>
+#include <ObjData/ObjData.hpp>
+#include <loader/loader.hpp>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -52,6 +54,16 @@ GLuint convertMatToTexture(const cv::Mat& image) {
     glTexImage2D(GL_TEXTURE_2D, 0, 0x1907, imageRGB.size().width, imageRGB.size().height, 0, 0x1907, GL_UNSIGNED_BYTE, imageRGB.data);
     return imageTexture;
 }
+
+void checkLimits(int& num,int min, int max) {
+    if (num < min) {
+        num = min;
+    }
+    else if (num > max) {
+        num = max;
+    }
+}
+
 
 int main(){
     glfwSetErrorCallback(glfw_error_callback);
@@ -101,12 +113,18 @@ int main(){
     bool showErrorPopup = false;
     std::string url = "https://github.com/emilakper/poromarker";
 
+    ve::DirectoryLoader dir_loader;
+
     ImGui::FileBrowser dirDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_MultipleSelection | 
-                                            ImGuiFileBrowserFlags_MultipleSelection | ImGuiFileBrowserFlags_CloseOnEsc);
+                                            ImGuiFileBrowserFlags_MultipleSelection | ImGuiFileBrowserFlags_CloseOnEsc |
+                                   ImGuiFileBrowserFlags_CreateNewDir);
     dirDialog.SetTitle("Choose folder");
     ImGui::FileBrowser fileDialog(ImGuiFileBrowserFlags_MultipleSelection | ImGuiFileBrowserFlags_CloseOnEsc);
     fileDialog.SetTitle("Choose files");
     fileDialog.SetTypeFilters({ ".png",".tif" });
+    ImGui::FileBrowser projDirDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_CloseOnEsc |
+        ImGuiFileBrowserFlags_CreateNewDir);
+    projDirDialog.SetTitle("Choose Project Folder");
 
     std::string picsPath = std::filesystem::path(__FILE__).parent_path().string() + "/pics/";
     std::replace(picsPath.begin(), picsPath.end(), '/', '\\');
@@ -114,10 +132,8 @@ int main(){
     cv::Mat image = cv::imread(picsPath + "logo.png", cv::IMREAD_COLOR);
     GLuint imageTexture = convertMatToTexture(image);
 
-    // Temorary Solution For testing functions, cv::Mat of layers would be given by teammate 
     std::vector<cv::Mat> layerImages;
     int layerNumber = 0;
-    int lastLayerNumber = 0;
     bool maskOn = false;
 
     layerImages.push_back(cv::imread(picsPath + "nolayerpic.png", cv::IMREAD_COLOR));
@@ -132,7 +148,7 @@ int main(){
     float maskTrans = 0.9f;
 
     const char* filters[] = { "BILATERAL", "NLM", "None"};
-    int currentFilter = 0;
+    int currentFilter = 2;
     int bdc = 0;
     int filterIterations = 2;
     int filterhParam = 10;
@@ -144,20 +160,17 @@ int main(){
     bool mode = false;
     std::string errorMessage;
 
-    cv::Mat parampic = cv::imread(picsPath + "parampic.png", cv::IMREAD_COLOR);
-    GLuint paramTexture = convertMatToTexture(parampic);
-    GLuint paramResult = convertMatToTexture(parampic);
+    // cv::Mat parampic = cv::imread(picsPath + "parampic.png", cv::IMREAD_COLOR);
+    GLuint paramTexture = convertMatToTexture(cv::imread(picsPath + "parampic.png", cv::IMREAD_COLOR));
+    GLuint paramResult = convertMatToTexture(cv::imread(picsPath + "parampic.png", cv::IMREAD_COLOR));
     std::vector<cv::Mat> paramPics;
     std::vector<cv::Mat> paramRes;
-    cv::Mat tempPic;
-    paramPics.push_back(parampic);
+    paramPics.push_back(cv::imread(picsPath + "parampic.png", cv::IMREAD_COLOR));
     ImageProcessor segment;
     ImageProcessor::Settings config;
-    // Main loop
+
     while (!glfwWindowShouldClose(window)){
         glfwPollEvents();
-
-        // Start the Dear ImGui frame
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -165,28 +178,27 @@ int main(){
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         
-        if (show_start_window)// StartMenu
+        if (show_start_window)
         {
             ImVec2 size(230, 375);
             ImGui::SetNextWindowSize(size, ImGuiCond_Once);
             ImGui::SetNextWindowPos(ImVec2((ImGui::GetIO().DisplaySize.x - size.x) * 0.5f, (ImGui::GetIO().DisplaySize.y - size.y) * 0.5f));
             ImGui::Begin("Welcome to PoroMarker",nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
-
             ImGui::SetWindowFontScale(1.0f*(ImGui::GetIO().DisplaySize.y / 1080));
-
             ImGui::Text("Choose an option.");
             ImGui::NewLine();
             if (ImGui::Button("Create project")){
-                // Обработка нажатия кнопки "Create project"
+                projDirDialog.Open();
+                /*
                 show_start_window = false;
                 if (!segment.configExists()) {
                     segment.createDefaultConfig();
                     config = segment.readConfig();
                     paramRes = segment.createMasks(paramPics, config);
-                    tempPic = paramRes[0];
-                    paramResult = convertMatToTexture(tempPic);
+                    glDeleteTextures(1, &paramResult);
+                    paramResult = convertMatToTexture(paramRes[0]);
                 }
-                show_project_window = true;
+                show_project_window = true;*/
             }
             if (ImGui::Button("Open project")){
                 // Обработка нажатия кнопки "Open project"
@@ -204,7 +216,6 @@ int main(){
             ImGui::SetNextWindowPos(ImVec2((ImGui::GetIO().DisplaySize.x - size.x) * 0.5f, (ImGui::GetIO().DisplaySize.y - size.y)));
             ImGui::Begin("Project", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse 
                                             | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar);
-
             if (ImGui::BeginMenuBar()) {
                 if (ImGui::BeginMenu("Project")) {
                     if (ImGui::MenuItem("Open folder")) {
@@ -269,10 +280,18 @@ int main(){
                 drawList->AddImage((void*)(intptr_t)maskExample, p0, p1, ImVec2(0, 0), ImVec2(1, 1), ImColor(tint));
             }
             ImGui::SetCursorPos(ImVec2(0, 990));
-            ImGui::SliderInt("Layer number", &layerNumber, 0, itrEnd,"");
+            if (ImGui::SliderInt("Layer number", &layerNumber, 0, itrEnd, "")) {
+                checkLimits(layerNumber, 0, itrEnd);
+                glDeleteTextures(1, &imageLayerTexture);
+                imageLayerTexture = convertMatToTexture(*(itr + layerNumber));
+            };
             ImGui::SetNextItemWidth(100);
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 600.0f);
-            ImGui::InputInt(" ", &layerNumber,1, 100, ImGuiInputTextFlags_EnterReturnsTrue);
+            if (ImGui::InputInt(" ", &layerNumber, 1, 100, ImGuiInputTextFlags_EnterReturnsTrue)) {
+                checkLimits(layerNumber, 0, itrEnd);
+                glDeleteTextures(1, &imageLayerTexture);
+                imageLayerTexture = convertMatToTexture(*(itr + layerNumber));
+            };
             ImGui::SameLine();
             ImGui::Checkbox("Mask On", &maskOn);
             if (maskOn) {
@@ -300,80 +319,94 @@ int main(){
             ImGui::PushItemWidth(150);
             ImGui::Text("Filter Type: ");
             ImGui::SameLine();
-            ImGui::Combo("##combo", &currentFilter, filters, IM_ARRAYSIZE(filters));
+            if (ImGui::Combo("##combo", &currentFilter, filters, IM_ARRAYSIZE(filters))) {
+                switch (currentFilter) {
+                case 0:
+                    config.filter = ImageProcessor::Settings::BILATERAL;
+                    break;
+                case 1:
+                    config.filter = ImageProcessor::Settings::NLM;
+                    break;
+                case 2:
+                    config.filter = ImageProcessor::Settings::NONE;
+                    break;
+                }
+            };
             if (currentFilter != 2) {
                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
-                ImGui::InputInt("filterIterations", &filterIterations, 1, 5);
+                if (ImGui::InputInt("filterIterations", &filterIterations, 1, 5)) {
+                    checkLimits(filterIterations, 1, 5);
+                    config.filterIterations = filterIterations;
+                };
                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
-                ImGui::InputInt("ksize", &ksize, 1, 30);
+                if (ImGui::InputInt("ksize", &ksize, 0, 0)) {
+                    if (ksize < 0) {
+                        ksize = 1;
+                    }
+                    else if (ksize > 29) {
+                        ksize = 29;
+                    }
+                    else if (ksize % 2 == 0) {
+                        ksize = ksize + 1;
+                    }
+                    config.ksize = ksize;
+                    segment.updateConfig(config);
+                };
                 if (currentFilter == 1) {
                     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
-                    ImGui::InputInt("filterhParam", &filterhParam, 1, 100);
+                    if (ImGui::InputInt("filterhParam", &filterhParam, 1, 100)) {
+                        checkLimits(filterhParam, 5, 100);
+                        config.filterhParam = filterhParam;
+                    };
                 }
             }
-            if (filterIterations < 1) {
-                filterIterations = 1;
-            }
-            else if (filterIterations > 5) {
-                filterIterations = 5;
-            }
 
-            if (filterhParam < 5) {
-                filterhParam = 5;
-            }
-            else if (filterhParam > 100) {
-                filterhParam = 100;
-            }
-
-            if (ksize < 0) {
-                ksize = 1;
-            }
-            else if (ksize > 29) {
-                ksize = 29;
-            }
-            else if (ksize % 2 == 0) {
-                ksize = ksize + 1;
-            }
             ImGui::NewLine();
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
             ImGui::Text("Threshold Type: ");
             ImGui::SameLine();
-            ImGui::Combo("##combo2", &currentThreshold, thresholds, IM_ARRAYSIZE(thresholds));
+            if (ImGui::Combo("##combo2", &currentThreshold, thresholds, IM_ARRAYSIZE(thresholds))) {
+                switch (currentThreshold) {
+                case 0:
+                    config.thresholdMethod = ImageProcessor::Settings::BINARY;
+                    break;
+                case 1:
+                    config.thresholdMethod = ImageProcessor::Settings::OTSU;
+                    break;
+                case 2:
+                    config.thresholdMethod = ImageProcessor::Settings::MEAN_STD_DEV;
+                    break;
+                case 3:
+                    config.thresholdMethod = ImageProcessor::Settings::KAPUR;
+                    break;
+                }
+            };
             if (currentThreshold == 2) {
                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
-                ImGui::InputInt("bdc", &bdc, 1, 3);
+                if (ImGui::InputInt("bdc", &bdc, 1, 3)) {
+                    checkLimits(bdc, 0, 3);
+                    config.BDC = bdc;
+                };
             }
 
             if (currentThreshold == 0) {
                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
-                ImGui::InputInt("threshold", &threshold, 0, 255);
+                if (ImGui::InputInt("threshold", &threshold, 0, 255)) {
+                    checkLimits(threshold, 0, 255);
+                    config.threshold = threshold;
+                };
             }
 
-            if (threshold < 0) {
-                threshold = 0;
-            }
-            else if (threshold > 255) {
-                threshold = 255;
-            }
-
-            if (bdc < 0) {
-                bdc = 0;
-            }
-            else if (bdc > 3) {
-                bdc = 3;
-            }
-            if (ImGui::Button("DEMO VERSION")) {
-                config.filter = ImageProcessor::Settings::BILATERAL;
-                config.ksize = ksize;
-                config.filterIterations = filterIterations;
-                config.threshold = threshold;
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.2f, 0.8f, 1.0f));
+            if (ImGui::Button("Try these parameters")) {
                 segment.updateConfig(config);
                 segment.readConfig();
                 paramRes = segment.createMasks(paramPics, config);
-                tempPic = paramRes[0];
-                paramResult = convertMatToTexture(tempPic);
+                glDeleteTextures(1, &paramResult);
+                paramResult = convertMatToTexture(paramRes[0]);
             }
-
+            ImGui::PopStyleColor();
             ImGui::PopItemWidth();
 
             ImGui::NewLine();
@@ -411,25 +444,19 @@ int main(){
 
             if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey::ImGuiKey_KeypadAdd))) {
                 layerNumber++;
+                checkLimits(layerNumber, 0, itrEnd);
+                glDeleteTextures(1, &imageLayerTexture);
+                imageLayerTexture = convertMatToTexture(*(itr + layerNumber));
             }
             if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey::ImGuiKey_KeypadSubtract))) {
                 layerNumber--;
-            }
-            if (layerNumber < 0) {
-                layerNumber = 0;
-            }
-            else if (layerNumber > itrEnd) {
-                layerNumber = itrEnd;
-            }
-            if (layerNumber != lastLayerNumber) {
-                lastLayerNumber = layerNumber;
+                checkLimits(layerNumber, 0, itrEnd);
                 glDeleteTextures(1, &imageLayerTexture);
-                imageLayerTexture = convertMatToTexture(*(itr+layerNumber));
+                imageLayerTexture = convertMatToTexture(*(itr + layerNumber));
             }
             ImGui::End();
         }
         
-        // Directory dialogue
         dirDialog.Display();
         if (dirDialog.HasSelected())
         {
@@ -440,47 +467,64 @@ int main(){
             }
             dirDialog.ClearSelected();
         }
-        // Files dialog
         fileDialog.Display();
         if (fileDialog.HasSelected())
         {
             std::vector<std::filesystem::path> selectedFiles = fileDialog.GetMultiSelected();
             layerImages.clear();
-            for (const auto& path : selectedFiles) {
-                std::string strPath = path.string();
-                std::replace(strPath.begin(), strPath.end(), '/', '\\');
-                try {
-                    cv::Mat image = cv::imread(strPath, cv::IMREAD_COLOR);
-                    if (image.empty()) {
-                        throw std::runtime_error("Failed to load image from file: " + strPath);
-                    }
-                    layerImages.push_back(image);
-                }
-                catch (const std::exception& e) {
-                    errorMessage = e.what();
-                    showErrorPopup = true;
-                }
+            dir_loader.reset();
+            ve::Error err = dir_loader.loadFromFiles(selectedFiles.cbegin(), selectedFiles.cend());
+            errorMessage = err.message;
+            if (!err)
+            {
+                std::cout << err.message;
+                showErrorPopup = true;
+            }
+            try {
+                std::cout << dir_loader.copyData().size();
+                layerImages = dir_loader.copyData();
+            }
+            catch (const std::exception& e) {
+                errorMessage = e.what();
+                showErrorPopup = true;
             }
             if (!layerImages.empty()) {
                 itr = layerImages.begin();
                 itrEnd = layerImages.size() - 1;
+                glDeleteTextures(1, &imageLayerTexture);
                 imageLayerTexture = convertMatToTexture(*itr);
             }
             else {
                 layerImages.push_back(cv::imread(picsPath + "nolayerpic.png", cv::IMREAD_COLOR));
                 itr = layerImages.begin();
                 itrEnd = layerImages.size() - 1;
+                glDeleteTextures(1, &imageLayerTexture);
                 imageLayerTexture = convertMatToTexture(*itr);
             }
             fileDialog.ClearSelected();
         }
-        // Error Read window
+
+        projDirDialog.Display();
+        if (projDirDialog.HasSelected()) {
+            show_start_window = false;
+            if (!segment.configExists()) {
+                segment.setConfigFilePath(projDirDialog.GetSelected().string());
+                segment.createDefaultConfig();
+                config = segment.readConfig();
+                paramRes = segment.createMasks(paramPics, config);
+                glDeleteTextures(1, &paramResult);
+                paramResult = convertMatToTexture(paramRes[0]);
+            }
+            show_project_window = true;
+            fileDialog.ClearSelected();
+        }
+
         if (showErrorPopup) {
             ImGui::OpenPopup("Error");
             if (ImGui::BeginPopupModal("Error", &showErrorPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
                 ImGui::SetNextWindowSize(ImVec2(400, 0));
                 ImGui::Text("An error occurred!");
-                ImGui::TextWrapped(errorMessage.c_str());
+                ImGui::TextWrapped(("Couldn't read an image from a file " + errorMessage).c_str());
                 if (ImGui::Button("OK", ImVec2(120, 0))) {
                     showErrorPopup = false;
                     ImGui::CloseCurrentPopup();
@@ -489,7 +533,6 @@ int main(){
             }
         }
 
-        // Rendering
         ImGui::Render();
         int display_w, display_h;
         glfwGetFramebufferSize(window, &display_w, &display_h);
@@ -497,11 +540,8 @@ int main(){
         glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
         glfwSwapBuffers(window);
     }
-
-    // Cleanup
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();

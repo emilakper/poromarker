@@ -22,6 +22,8 @@ include(FetchContent)
 
 set(GITHUB_TOKEN_1 "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")
 set(GITHUB_TOKEN_2 "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")
+set(GITHUB_TOKEN_3 "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")
+set(BUILD_ONLY_LIBRARY on)
 
 FetchContent_Declare(
   poroseg
@@ -29,27 +31,30 @@ FetchContent_Declare(
   GIT_TAG main
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/modules/Segmentation
 )
+FetchContent_MakeAvailable(poroseg)
 
-FetchContent_GetProperties(poroseg)
-if(NOT poroseg_POPULATED)
-  FetchContent_Populate(poroseg)
-  add_subdirectory(${poroseg_SOURCE_DIR}/prj.cw/ImageProcessor)
+FetchContent_Declare(
+  poroload
+  GIT_REPOSITORY https://${GITHUB_TOKEN_3}@github.com/dueip/misis2023f-22-24-voevodin-e-o.git
+  GIT_TAG main
+  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/modules/PoroLoader
+)
+FetchContent_MakeAvailable(poroload)
+
+FetchContent_Declare(
+  poroanalysis
+  GIT_REPOSITORY https://${GITHUB_TOKEN_2}@github.com/Maksim-Goncharovskiy/misis2023f-22-04-goncharovskiy-m-n.git
+  GIT_TAG main
+  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/modules/PoroAnalysis
+)
+
+FetchContent_GetProperties(poroanalysis)
+if(NOT poroanalysis_POPULATED)
+  FetchContent_Populate(poroanalysis)
+  add_subdirectory(${poroanalysis_SOURCE_DIR}/prj.cw/ObjData)
 endif()
-
-#FetchContent_Declare(
-#  poroanalysis
-#  GIT_REPOSITORY https://${GITHUB_TOKEN_2}@github.com/Maksim-Goncharovskiy/misis2023f-22-04-goncharovskiy-m-n.git
-#  GIT_TAG main
-#  SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/modules/PoroAnalysis
-#)
-
-#FetchContent_GetProperties(poroanalysis)
-#if(NOT poroanalysis_POPULATED)
-#  FetchContent_Populate(poroanalysis)
-#  add_subdirectory(${poroanalysis_SOURCE_DIR}/prj.cw/ObjData)
-#endif()
 
 add_subdirectory(modules/UIfilebr)
 
 add_executable(poromarker "poromarker.cpp")
-target_link_libraries(poromarker PRIVATE imgui::imgui opencv_core opencv_highgui opencv_imgproc imfilebrowser sabin)
+target_link_libraries(poromarker PRIVATE imgui::imgui opencv_core opencv_highgui opencv_imgproc imfilebrowser sabin ObjData_lib loader)
