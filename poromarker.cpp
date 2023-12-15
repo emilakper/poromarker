@@ -133,16 +133,18 @@ int main(){
     GLuint imageTexture = convertMatToTexture(image);
 
     std::vector<cv::Mat> layerImages;
+    std::vector<cv::Mat> masksImages;
     int layerNumber = 0;
     bool maskOn = false;
 
     layerImages.push_back(cv::imread(picsPath + "nolayerpic.png", cv::IMREAD_COLOR));
+    masksImages.push_back(cv::imread(picsPath + "maskexample.png", cv::IMREAD_COLOR));
     auto itr = layerImages.begin();
     int itrEnd = layerImages.size()-1;
+    auto itrm = masksImages.begin();
+    int itrmEnd = masksImages.size() - 1;
     GLuint imageLayerTexture = convertMatToTexture(*itr);
-
-    cv::Mat maskExamplePic = cv::imread(picsPath + "maskexample.png", cv::IMREAD_COLOR);
-    GLuint maskExample = convertMatToTexture(maskExamplePic);
+    GLuint maskLayerTexture = convertMatToTexture(*itrm);
 
     float oriTrans = 0.55f;
     float maskTrans = 0.9f;
@@ -277,13 +279,15 @@ int main(){
                 p0 = ImGui::GetCursorScreenPos();
                 p1 = ImVec2(p0.x + 965, p0.y + 965);
                 tint = ImVec4(1.0f, 1.0f, 1.0f, maskTrans); 
-                drawList->AddImage((void*)(intptr_t)maskExample, p0, p1, ImVec2(0, 0), ImVec2(1, 1), ImColor(tint));
+                drawList->AddImage((void*)(intptr_t)maskLayerTexture, p0, p1, ImVec2(0, 0), ImVec2(1, 1), ImColor(tint));
             }
             ImGui::SetCursorPos(ImVec2(0, 990));
             if (ImGui::SliderInt("Layer number", &layerNumber, 0, itrEnd, "")) {
                 checkLimits(layerNumber, 0, itrEnd);
                 glDeleteTextures(1, &imageLayerTexture);
                 imageLayerTexture = convertMatToTexture(*(itr + layerNumber));
+                glDeleteTextures(1, &maskLayerTexture);
+                maskLayerTexture = convertMatToTexture(*(itrm + layerNumber));
             };
             ImGui::SetNextItemWidth(100);
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 600.0f);
@@ -291,6 +295,8 @@ int main(){
                 checkLimits(layerNumber, 0, itrEnd);
                 glDeleteTextures(1, &imageLayerTexture);
                 imageLayerTexture = convertMatToTexture(*(itr + layerNumber));
+                glDeleteTextures(1, &maskLayerTexture);
+                maskLayerTexture = convertMatToTexture(*(itrm + layerNumber));
             };
             ImGui::SameLine();
             ImGui::Checkbox("Mask On", &maskOn);
@@ -418,6 +424,11 @@ int main(){
             ImGui::PushItemWidth(150);
             if (ImGui::Button("Semi-Automatic Marking")) {
                 // Logic
+                masksImages = segment.createMasks(layerImages, config);
+                itrm = masksImages.begin();
+                itrmEnd = masksImages.size() - 1;
+                glDeleteTextures(1, &maskLayerTexture);
+                maskLayerTexture = convertMatToTexture(*(itrm + layerNumber));
             }
             ImGui::PopStyleColor();
 
@@ -447,12 +458,16 @@ int main(){
                 checkLimits(layerNumber, 0, itrEnd);
                 glDeleteTextures(1, &imageLayerTexture);
                 imageLayerTexture = convertMatToTexture(*(itr + layerNumber));
+                glDeleteTextures(1, &maskLayerTexture);
+                maskLayerTexture = convertMatToTexture(*(itrm + layerNumber));
             }
             if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey::ImGuiKey_KeypadSubtract))) {
                 layerNumber--;
                 checkLimits(layerNumber, 0, itrEnd);
                 glDeleteTextures(1, &imageLayerTexture);
                 imageLayerTexture = convertMatToTexture(*(itr + layerNumber));
+                glDeleteTextures(1, &maskLayerTexture);
+                maskLayerTexture = convertMatToTexture(*(itrm + layerNumber));
             }
             ImGui::End();
         }
@@ -472,6 +487,7 @@ int main(){
         {
             std::vector<std::filesystem::path> selectedFiles = fileDialog.GetMultiSelected();
             layerImages.clear();
+            masksImages.clear();
             dir_loader.reset();
             ve::Error err = dir_loader.loadFromFiles(selectedFiles.cbegin(), selectedFiles.cend());
             errorMessage = err.message;
@@ -483,6 +499,8 @@ int main(){
             try {
                 std::cout << dir_loader.copyData().size();
                 layerImages = dir_loader.copyData();
+                masksImages.push_back(cv::imread(picsPath + "maskexample.png", cv::IMREAD_COLOR));
+                masksImages.resize(layerImages.size(), cv::imread(picsPath + "maskexample.png", cv::IMREAD_COLOR));
             }
             catch (const std::exception& e) {
                 errorMessage = e.what();
@@ -491,15 +509,24 @@ int main(){
             if (!layerImages.empty()) {
                 itr = layerImages.begin();
                 itrEnd = layerImages.size() - 1;
+                itrm = masksImages.begin();
+                itrmEnd = masksImages.size() - 1;
                 glDeleteTextures(1, &imageLayerTexture);
                 imageLayerTexture = convertMatToTexture(*itr);
+                glDeleteTextures(1, &maskLayerTexture);
+                maskLayerTexture = convertMatToTexture(*(itrm + layerNumber));
             }
             else {
                 layerImages.push_back(cv::imread(picsPath + "nolayerpic.png", cv::IMREAD_COLOR));
+                masksImages.push_back(cv::imread(picsPath + "maskexample.png", cv::IMREAD_COLOR));
                 itr = layerImages.begin();
                 itrEnd = layerImages.size() - 1;
+                itrm = masksImages.begin();
+                itrmEnd = masksImages.size() - 1;
                 glDeleteTextures(1, &imageLayerTexture);
                 imageLayerTexture = convertMatToTexture(*itr);
+                glDeleteTextures(1, &maskLayerTexture);
+                maskLayerTexture = convertMatToTexture(*(itrm + layerNumber));
             }
             fileDialog.ClearSelected();
         }
@@ -516,7 +543,7 @@ int main(){
                 paramResult = convertMatToTexture(paramRes[0]);
             }
             show_project_window = true;
-            fileDialog.ClearSelected();
+            projDirDialog.ClearSelected();
         }
 
         if (showErrorPopup) {
