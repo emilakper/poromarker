@@ -43,7 +43,6 @@ static void glfw_error_callback(int error, const char* description){
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
 
-
 GLuint convertMatToTexture(const cv::Mat& image) {
     cv::Mat imageRGB;
     cv::cvtColor(image, imageRGB, cv::COLOR_BGR2RGB);
@@ -62,6 +61,25 @@ void checkLimits(int& num,int min, int max) {
     else if (num > max) {
         num = max;
     }
+}
+
+cv::Mat modifyColors(const cv::Mat& image) {
+    cv::Mat modifiedImage = image.clone();  
+    cv::cvtColor(modifiedImage, modifiedImage, cv::COLOR_GRAY2BGR);
+    for (int y = 0; y < modifiedImage.rows; ++y) {
+        cv::Vec3b* row = modifiedImage.ptr<cv::Vec3b>(y);
+        for (int x = 0; x < modifiedImage.cols; ++x) {
+            cv::Vec3b& color = row[x];
+            if (color == cv::Vec3b(255, 255, 255)) {  
+                color = cv::Vec3b(128, 0, 128); 
+            }
+            else if (color == cv::Vec3b(0, 0, 0)) { 
+                color = cv::Vec3b(0, 255, 255); 
+            }
+        }
+    }
+
+    return modifiedImage;
 }
 
 
@@ -111,6 +129,7 @@ int main(){
     bool show_start_window = true; // Startup Window
     bool show_project_window = false; // Project Window
     bool showErrorPopup = false;
+    bool showDummyWindow = false;
     std::string url = "https://github.com/emilakper/poromarker";
 
     ve::DirectoryLoader dir_loader;
@@ -125,12 +144,15 @@ int main(){
     ImGui::FileBrowser projDirDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_CloseOnEsc |
         ImGuiFileBrowserFlags_CreateNewDir);
     projDirDialog.SetTitle("Choose Project Folder");
+    ImGui::FileBrowser projOpenDirDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_CloseOnEsc);
+    projOpenDirDialog.SetTitle("Choose Project Folder");
 
     std::string picsPath = std::filesystem::path(__FILE__).parent_path().string() + "/pics/";
     std::replace(picsPath.begin(), picsPath.end(), '/', '\\');
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     cv::Mat image = cv::imread(picsPath + "logo.png", cv::IMREAD_COLOR);
     GLuint imageTexture = convertMatToTexture(image);
+    cv::Mat tempImage;
 
     std::vector<cv::Mat> layerImages;
     std::vector<cv::Mat> masksImages;
@@ -138,13 +160,13 @@ int main(){
     bool maskOn = false;
 
     layerImages.push_back(cv::imread(picsPath + "nolayerpic.png", cv::IMREAD_COLOR));
-    masksImages.push_back(cv::imread(picsPath + "maskexample.png", cv::IMREAD_COLOR));
+    masksImages.push_back(cv::imread(picsPath + "maskexample.png", cv::IMREAD_GRAYSCALE));
     auto itr = layerImages.begin();
     int itrEnd = layerImages.size()-1;
     auto itrm = masksImages.begin();
     int itrmEnd = masksImages.size() - 1;
     GLuint imageLayerTexture = convertMatToTexture(*itr);
-    GLuint maskLayerTexture = convertMatToTexture(*itrm);
+    GLuint maskLayerTexture = convertMatToTexture(modifyColors(*itrm));
 
     float oriTrans = 0.55f;
     float maskTrans = 0.9f;
@@ -171,6 +193,29 @@ int main(){
     ImageProcessor segment;
     ImageProcessor::Settings config;
 
+    const int cursorWidth = 16;
+    const int cursorHeight = 16;
+
+    // Создание текстурных данных для крестика
+    unsigned char cursorData[cursorWidth * cursorHeight * 4];
+    for (int y = 0; y < cursorHeight; ++y) {
+        for (int x = 0; x < cursorWidth; ++x) {
+            bool isDiagonalPixel = (x == y || x == (cursorWidth - y - 1));
+            int offset = (x + y * cursorWidth) * 4;
+            cursorData[offset] = isDiagonalPixel ? 255 : 0; // Красный канал
+            cursorData[offset + 1] = 0; // Зеленый канал
+            cursorData[offset + 2] = 0; // Синий канал
+            cursorData[offset + 3] = isDiagonalPixel ? 255 : 0; // Альфа-канал (непрозрачный)
+        }
+    }
+
+    // Создание кастомного курсора из текстурных данных
+    GLFWimage cursimage;
+    cursimage.width = cursorWidth;
+    cursimage.height = cursorHeight;
+    cursimage.pixels = cursorData;
+    GLFWcursor* customCursor = glfwCreateCursor(&cursimage, cursorWidth / 2, cursorHeight / 2);
+    
     while (!glfwWindowShouldClose(window)){
         glfwPollEvents();
         ImGui_ImplOpenGL3_NewFrame();
@@ -191,19 +236,9 @@ int main(){
             ImGui::NewLine();
             if (ImGui::Button("Create project")){
                 projDirDialog.Open();
-                /*
-                show_start_window = false;
-                if (!segment.configExists()) {
-                    segment.createDefaultConfig();
-                    config = segment.readConfig();
-                    paramRes = segment.createMasks(paramPics, config);
-                    glDeleteTextures(1, &paramResult);
-                    paramResult = convertMatToTexture(paramRes[0]);
-                }
-                show_project_window = true;*/
             }
             if (ImGui::Button("Open project")){
-                // Обработка нажатия кнопки "Open project"
+                projOpenDirDialog.Open();
             }
             if (ImGui::Button("Help")){
                 OpenURLInBrowser(url);
@@ -213,8 +248,10 @@ int main(){
         }
         
         if (show_project_window) {
-            ImVec2 size(ImGui::GetIO().DisplaySize.x, ImGui::GetIO().DisplaySize.y);
-            ImGui::SetNextWindowSize(size, ImGuiCond_Once);
+            int width, height;
+            glfwGetFramebufferSize(window, &width, &height);
+            ImVec2 size(static_cast<float>(width), static_cast<float>(height));
+            ImGui::SetNextWindowSize(size);
             ImGui::SetNextWindowPos(ImVec2((ImGui::GetIO().DisplaySize.x - size.x) * 0.5f, (ImGui::GetIO().DisplaySize.y - size.y)));
             ImGui::Begin("Project", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse 
                                             | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar);
@@ -228,6 +265,7 @@ int main(){
                     }
                     if (ImGui::MenuItem("Save")) {
                         // Saving function
+                        segment.updateConfig(config);
                     }
                     if (ImGui::MenuItem("Exit")) {
                         show_start_window = true;
@@ -245,58 +283,68 @@ int main(){
                 // Instruments Buttons
                 ImGui::Separator();
 
-                if (ImGui::Button("Scissors", ImVec2(160, 0))) {
-                    // Scissors function
+                if (ImGui::Button("Scissors", ImVec2(160 * width / 1920, 0))) {
+                    showDummyWindow = true;
                 }
                 ImGui::SameLine();
 
-                if (ImGui::Button("Rectangle", ImVec2(160, 0))) {
-                    // Rectangle Function
+                if (ImGui::Button("Rectangle", ImVec2(160 * width / 1920, 0))) {
+                    showDummyWindow = true;
                 }
 
-                if (ImGui::Button("Erase", ImVec2(160, 0))) {
-                    // Erase function
+                if (ImGui::Button("Erase", ImVec2(160 * width / 1920, 0))) {
+                    showDummyWindow = true;
                 }
 
-                if (ImGui::Button("PolyLine", ImVec2(160, 0))) {
-                    // PolyLine function
+                if (ImGui::Button("PolyLine", ImVec2(160 * width / 1920, 0))) {
+                    showDummyWindow = true;
                 }
                 ImGui::EndMenuBar();
             }
 
-            ImGui::SetCursorPos(ImVec2(150,25));
+            ImGui::Columns(2, "myColumns", false);
+
+            float columnWidth1 = ImGui::GetWindowSize().x * 0.625f;
+            float columnWidth2 = ImGui::GetWindowSize().x * 0.375f;
+
+            ImGui::SetColumnWidth(0, columnWidth1);
+            ImGui::SetColumnWidth(1, columnWidth2);
+
             ImDrawList* drawList = ImGui::GetWindowDrawList();
 
             if (!maskOn) {
-                ImGui::Image((void*)(intptr_t)imageLayerTexture, ImVec2(965, 965));
+                ImGui::Image((void*)(intptr_t)imageLayerTexture, ImVec2(height - 100, height - 100));
             }
             else {
                 ImVec2 p0 = ImGui::GetCursorScreenPos();
-                ImVec2 p1 = ImVec2(p0.x + 965, p0.y + 965);
+                ImVec2 p1 = ImVec2(p0.x + height - 100, p0.y + height - 100);
                 ImVec4 tint = ImVec4(1.0f, 1.0f, 1.0f, oriTrans); 
                 drawList->AddImage((void*)(intptr_t)imageLayerTexture, p0, p1, ImVec2(0, 0), ImVec2(1, 1), ImColor(tint));
 
                 p0 = ImGui::GetCursorScreenPos();
-                p1 = ImVec2(p0.x + 965, p0.y + 965);
+                p1 = ImVec2(p0.x + height - 100, p0.y + height - 100);
                 tint = ImVec4(1.0f, 1.0f, 1.0f, maskTrans); 
                 drawList->AddImage((void*)(intptr_t)maskLayerTexture, p0, p1, ImVec2(0, 0), ImVec2(1, 1), ImColor(tint));
+                ImGui::SetCursorScreenPos(ImVec2(p0.x, p1.y));
             }
-            ImGui::SetCursorPos(ImVec2(0, 990));
             if (ImGui::SliderInt("Layer number", &layerNumber, 0, itrEnd, "")) {
                 checkLimits(layerNumber, 0, itrEnd);
                 glDeleteTextures(1, &imageLayerTexture);
                 imageLayerTexture = convertMatToTexture(*(itr + layerNumber));
                 glDeleteTextures(1, &maskLayerTexture);
-                maskLayerTexture = convertMatToTexture(*(itrm + layerNumber));
+                maskLayerTexture = convertMatToTexture(modifyColors(*(itrm + layerNumber)));
             };
             ImGui::SetNextItemWidth(100);
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 600.0f);
+            if (!maskOn)
+                ImGui::SetCursorPosX(columnWidth1 * 0.2);
+            else
+                ImGui::SetCursorPosX(columnWidth1 * 0.01);
             if (ImGui::InputInt(" ", &layerNumber, 1, 100, ImGuiInputTextFlags_EnterReturnsTrue)) {
                 checkLimits(layerNumber, 0, itrEnd);
                 glDeleteTextures(1, &imageLayerTexture);
                 imageLayerTexture = convertMatToTexture(*(itr + layerNumber));
                 glDeleteTextures(1, &maskLayerTexture);
-                maskLayerTexture = convertMatToTexture(*(itrm + layerNumber));
+                maskLayerTexture = convertMatToTexture(modifyColors(*(itrm + layerNumber)));
             };
             ImGui::SameLine();
             ImGui::Checkbox("Mask On", &maskOn);
@@ -320,8 +368,7 @@ int main(){
                     maskTrans = 1.0;
                 }
             }
-            ImGui::SetCursorPosY(100.0f);
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
+            ImGui::NextColumn();
             ImGui::PushItemWidth(150);
             ImGui::Text("Filter Type: ");
             ImGui::SameLine();
@@ -339,12 +386,10 @@ int main(){
                 }
             };
             if (currentFilter != 2) {
-                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
                 if (ImGui::InputInt("filterIterations", &filterIterations, 1, 5)) {
                     checkLimits(filterIterations, 1, 5);
                     config.filterIterations = filterIterations;
                 };
-                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
                 if (ImGui::InputInt("ksize", &ksize, 0, 0)) {
                     if (ksize < 0) {
                         ksize = 1;
@@ -359,7 +404,6 @@ int main(){
                     segment.updateConfig(config);
                 };
                 if (currentFilter == 1) {
-                    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
                     if (ImGui::InputInt("filterhParam", &filterhParam, 1, 100)) {
                         checkLimits(filterhParam, 5, 100);
                         config.filterhParam = filterhParam;
@@ -368,7 +412,6 @@ int main(){
             }
 
             ImGui::NewLine();
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
             ImGui::Text("Threshold Type: ");
             ImGui::SameLine();
             if (ImGui::Combo("##combo2", &currentThreshold, thresholds, IM_ARRAYSIZE(thresholds))) {
@@ -388,7 +431,6 @@ int main(){
                 }
             };
             if (currentThreshold == 2) {
-                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
                 if (ImGui::InputInt("bdc", &bdc, 1, 3)) {
                     checkLimits(bdc, 0, 3);
                     config.BDC = bdc;
@@ -396,39 +438,36 @@ int main(){
             }
 
             if (currentThreshold == 0) {
-                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
                 if (ImGui::InputInt("threshold", &threshold, 0, 255)) {
                     checkLimits(threshold, 0, 255);
                     config.threshold = threshold;
                 };
             }
 
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.2f, 0.8f, 1.0f));
             if (ImGui::Button("Try these parameters")) {
                 segment.updateConfig(config);
                 segment.readConfig();
                 paramRes = segment.createMasks(paramPics, config);
                 glDeleteTextures(1, &paramResult);
-                paramResult = convertMatToTexture(paramRes[0]);
+                paramResult = convertMatToTexture(modifyColors(paramRes[0]));
             }
             ImGui::PopStyleColor();
             ImGui::PopItemWidth();
 
             ImGui::NewLine();
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
             ImGui::Checkbox("Lungs analysis mode", &mode);
 
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.2f, 0.8f, 1.0f));
             ImGui::PushItemWidth(150);
             if (ImGui::Button("Semi-Automatic Marking")) {
-                // Logic
+                glfwSetCursor(window, customCursor);
                 masksImages = segment.createMasks(layerImages, config);
                 itrm = masksImages.begin();
                 itrmEnd = masksImages.size() - 1;
                 glDeleteTextures(1, &maskLayerTexture);
-                maskLayerTexture = convertMatToTexture(*(itrm + layerNumber));
+                maskLayerTexture = convertMatToTexture(modifyColors(*(itrm + layerNumber)));
+                glfwSetCursor(window, NULL);
             }
             ImGui::PopStyleColor();
 
@@ -443,15 +482,13 @@ int main(){
 
             ImGui::NewLine();
             ImGui::NewLine();
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
             ImGui::Text("Original picture:");
-            ImGui::SameLine(1550);
+            ImGui::SameLine(350.0f * width / 1920);
             ImGui::Text("After segmentation:");
             ImGui::NewLine();
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 1200.0f);
-            ImGui::Image((void*)(intptr_t)paramTexture, ImVec2(300, 300));
-            ImGui::SameLine(1550.f);
-            ImGui::Image((void*)(intptr_t)paramResult, ImVec2(300, 300));
+            ImGui::Image((void*)(intptr_t)paramTexture, ImVec2(300 * width / 1920, 300 * width / 1920));
+            ImGui::SameLine(350.0f * width / 1920);
+            ImGui::Image((void*)(intptr_t)paramResult, ImVec2(300 * width / 1920, 300 * width / 1920));
 
             if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey::ImGuiKey_KeypadAdd))) {
                 layerNumber++;
@@ -459,7 +496,7 @@ int main(){
                 glDeleteTextures(1, &imageLayerTexture);
                 imageLayerTexture = convertMatToTexture(*(itr + layerNumber));
                 glDeleteTextures(1, &maskLayerTexture);
-                maskLayerTexture = convertMatToTexture(*(itrm + layerNumber));
+                maskLayerTexture = convertMatToTexture(modifyColors(*(itrm + layerNumber)));
             }
             if (ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey::ImGuiKey_KeypadSubtract))) {
                 layerNumber--;
@@ -467,9 +504,22 @@ int main(){
                 glDeleteTextures(1, &imageLayerTexture);
                 imageLayerTexture = convertMatToTexture(*(itr + layerNumber));
                 glDeleteTextures(1, &maskLayerTexture);
-                maskLayerTexture = convertMatToTexture(*(itrm + layerNumber));
+                maskLayerTexture = convertMatToTexture(modifyColors(*(itrm + layerNumber)));
             }
             ImGui::End();
+        }
+
+        if (showDummyWindow) {
+            ImGui::OpenPopup("Dummy Window");
+            if (ImGui::BeginPopupModal("Dummy Window", &showDummyWindow, ImGuiWindowFlags_AlwaysAutoResize)) {
+                ImGui::SetNextWindowSize(ImVec2(400, 0));
+                ImGui::Text("This button works!");
+                if (ImGui::Button("OK", ImVec2(120, 0))) {
+                    showDummyWindow = false;
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
+            }
         }
         
         dirDialog.Display();
@@ -497,10 +547,9 @@ int main(){
                 showErrorPopup = true;
             }
             try {
-                std::cout << dir_loader.copyData().size();
                 layerImages = dir_loader.copyData();
-                masksImages.push_back(cv::imread(picsPath + "maskexample.png", cv::IMREAD_COLOR));
-                masksImages.resize(layerImages.size(), cv::imread(picsPath + "maskexample.png", cv::IMREAD_COLOR));
+                masksImages.push_back(cv::imread(picsPath + "maskexample.png", cv::IMREAD_GRAYSCALE));
+                masksImages.resize(layerImages.size(), cv::imread(picsPath + "maskexample.png", cv::IMREAD_GRAYSCALE));
             }
             catch (const std::exception& e) {
                 errorMessage = e.what();
@@ -514,11 +563,11 @@ int main(){
                 glDeleteTextures(1, &imageLayerTexture);
                 imageLayerTexture = convertMatToTexture(*itr);
                 glDeleteTextures(1, &maskLayerTexture);
-                maskLayerTexture = convertMatToTexture(*(itrm + layerNumber));
+                maskLayerTexture = convertMatToTexture(modifyColors(*(itrm + layerNumber)));
             }
             else {
                 layerImages.push_back(cv::imread(picsPath + "nolayerpic.png", cv::IMREAD_COLOR));
-                masksImages.push_back(cv::imread(picsPath + "maskexample.png", cv::IMREAD_COLOR));
+                masksImages.push_back(cv::imread(picsPath + "maskexample.png", cv::IMREAD_GRAYSCALE));
                 itr = layerImages.begin();
                 itrEnd = layerImages.size() - 1;
                 itrm = masksImages.begin();
@@ -526,7 +575,7 @@ int main(){
                 glDeleteTextures(1, &imageLayerTexture);
                 imageLayerTexture = convertMatToTexture(*itr);
                 glDeleteTextures(1, &maskLayerTexture);
-                maskLayerTexture = convertMatToTexture(*(itrm + layerNumber));
+                maskLayerTexture = convertMatToTexture(modifyColors(*(itrm + layerNumber)));
             }
             fileDialog.ClearSelected();
         }
@@ -534,16 +583,27 @@ int main(){
         projDirDialog.Display();
         if (projDirDialog.HasSelected()) {
             show_start_window = false;
-            if (!segment.configExists()) {
-                segment.setConfigFilePath(projDirDialog.GetSelected().string());
-                segment.createDefaultConfig();
-                config = segment.readConfig();
-                paramRes = segment.createMasks(paramPics, config);
-                glDeleteTextures(1, &paramResult);
-                paramResult = convertMatToTexture(paramRes[0]);
-            }
+            segment.setConfigFilePath(projDirDialog.GetSelected().string());
+            segment.createDefaultConfig();
+            config = segment.readConfig();
+            paramRes = segment.createMasks(paramPics, config);
+            glDeleteTextures(1, &paramResult);
+            paramResult = convertMatToTexture(paramRes[0]);
+            fs::create_directory(projDirDialog.GetSelected().string() + "/masks");
             show_project_window = true;
             projDirDialog.ClearSelected();
+        }
+
+        projOpenDirDialog.Display();
+        if (projOpenDirDialog.HasSelected()) {
+            show_start_window = false;
+            segment.setConfigFilePath(projOpenDirDialog.GetSelected().string());
+            config = segment.readConfig();
+            paramRes = segment.createMasks(paramPics, config);
+            glDeleteTextures(1, &paramResult);
+            paramResult = convertMatToTexture(paramRes[0]);
+            show_project_window = true;
+            projOpenDirDialog.ClearSelected();
         }
 
         if (showErrorPopup) {
