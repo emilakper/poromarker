@@ -129,6 +129,8 @@ int main(){
     bool show_start_window = true; // Startup Window
     bool show_project_window = false; // Project Window
     bool showErrorPopup = false;
+    bool showExitPopup = false;
+    bool showErrorOpenPopup = false;
     bool showDummyWindow = false;
     std::string url = "https://github.com/emilakper/poromarker";
 
@@ -148,7 +150,9 @@ int main(){
     projOpenDirDialog.SetTitle("Choose Project Folder");
 
     std::string picsPath = std::filesystem::path(__FILE__).parent_path().string() + "/pics/";
+#ifdef _WIN32
     std::replace(picsPath.begin(), picsPath.end(), '/', '\\');
+#endif
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     cv::Mat image = cv::imread(picsPath + "logo.png", cv::IMREAD_COLOR);
     GLuint imageTexture = convertMatToTexture(image);
@@ -268,8 +272,9 @@ int main(){
                         segment.updateConfig(config);
                     }
                     if (ImGui::MenuItem("Exit")) {
-                        show_start_window = true;
-                        show_project_window = false;
+                        showExitPopup = true;
+                        // show_start_window = true;
+                        // show_project_window = false;
                     }
                     ImGui::EndMenu();
                 }
@@ -525,13 +530,54 @@ int main(){
         dirDialog.Display();
         if (dirDialog.HasSelected())
         {
+            bool dirError;
             std::vector<std::filesystem::path> selectedDir = dirDialog.GetMultiSelected();
-
+            layerImages.clear();
+            masksImages.clear();
+            dir_loader.reset();
             for (const auto& path : selectedDir) {
-                std::cout << "Selected directory: " << path.string() << std::endl;
+                ve::Error err = dir_loader.loadFromDirectory(path);
+                errorMessage = err.message;
+                dirError = err;
+            }
+            if (!dirError)
+            {
+                showErrorPopup = true;
+            }
+            try {
+                layerImages = dir_loader.copyData();
+                masksImages.push_back(cv::imread(picsPath + "maskexample.png", cv::IMREAD_GRAYSCALE));
+                masksImages.resize(layerImages.size(), cv::imread(picsPath + "maskexample.png", cv::IMREAD_GRAYSCALE));
+            }
+            catch (const std::exception& e) {
+                errorMessage = e.what();
+                showErrorPopup = true;
+            }
+            if (!layerImages.empty()) {
+                itr = layerImages.begin();
+                itrEnd = layerImages.size() - 1;
+                itrm = masksImages.begin();
+                itrmEnd = masksImages.size() - 1;
+                glDeleteTextures(1, &imageLayerTexture);
+                imageLayerTexture = convertMatToTexture(*itr);
+                glDeleteTextures(1, &maskLayerTexture);
+                maskLayerTexture = convertMatToTexture(modifyColors(*(itrm + layerNumber)));
+            }
+            else {
+                layerImages.push_back(cv::imread(picsPath + "nolayerpic.png", cv::IMREAD_COLOR));
+                masksImages.push_back(cv::imread(picsPath + "maskexample.png", cv::IMREAD_GRAYSCALE));
+                itr = layerImages.begin();
+                itrEnd = layerImages.size() - 1;
+                itrm = masksImages.begin();
+                itrmEnd = masksImages.size() - 1;
+                glDeleteTextures(1, &imageLayerTexture);
+                imageLayerTexture = convertMatToTexture(*itr);
+                glDeleteTextures(1, &maskLayerTexture);
+                maskLayerTexture = convertMatToTexture(modifyColors(*(itrm + layerNumber)));
             }
             dirDialog.ClearSelected();
         }
+
         fileDialog.Display();
         if (fileDialog.HasSelected())
         {
@@ -596,14 +642,20 @@ int main(){
 
         projOpenDirDialog.Display();
         if (projOpenDirDialog.HasSelected()) {
-            show_start_window = false;
             segment.setConfigFilePath(projOpenDirDialog.GetSelected().string());
-            config = segment.readConfig();
-            paramRes = segment.createMasks(paramPics, config);
-            glDeleteTextures(1, &paramResult);
-            paramResult = convertMatToTexture(paramRes[0]);
-            show_project_window = true;
-            projOpenDirDialog.ClearSelected();
+            if (segment.configExists()) {
+                show_start_window = false;
+                config = segment.readConfig();
+                paramRes = segment.createMasks(paramPics, config);
+                glDeleteTextures(1, &paramResult);
+                paramResult = convertMatToTexture(paramRes[0]);
+                show_project_window = true;
+                projOpenDirDialog.ClearSelected();
+            }
+            else {
+                showErrorOpenPopup = true;
+                projOpenDirDialog.ClearSelected();
+            }
         }
 
         if (showErrorPopup) {
@@ -619,6 +671,72 @@ int main(){
                 ImGui::EndPopup();
             }
         }
+
+        if (showErrorOpenPopup) {
+            ImGui::OpenPopup("Error");
+            if (ImGui::BeginPopupModal("Error", &showErrorOpenPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
+                ImGui::SetNextWindowSize(ImVec2(400, 0));
+                ImGui::Text("An error occurred!");
+                ImGui::TextWrapped(("This directory is not a project directory" + errorMessage).c_str());
+                if (ImGui::Button("OK", ImVec2(120, 0))) {
+                    showErrorOpenPopup = false;
+                    show_start_window = true;
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
+            }
+        }
+
+        if (showExitPopup) {
+            ImGui::OpenPopup("Exit Popup");
+            if (ImGui::BeginPopupModal("Exit Popup", &showExitPopup, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse)) {
+                ImGui::SetNextWindowSize(ImVec2(510, 0));
+                ImGui::Text("Do you want to exit without saving the project?");
+                if (ImGui::Button("Yes")) {
+                    layerImages.clear();
+                    masksImages.clear();
+                    layerImages.push_back(cv::imread(picsPath + "nolayerpic.png", cv::IMREAD_COLOR));
+                    masksImages.push_back(cv::imread(picsPath + "maskexample.png", cv::IMREAD_GRAYSCALE));
+                    itr = layerImages.begin();
+                    itrEnd = layerImages.size() - 1;
+                    itrm = masksImages.begin();
+                    itrmEnd = masksImages.size() - 1;
+                    glDeleteTextures(1, &imageLayerTexture);
+                    imageLayerTexture = convertMatToTexture(*itr);
+                    glDeleteTextures(1, &maskLayerTexture);
+                    maskLayerTexture = convertMatToTexture(modifyColors(*(itrm + layerNumber)));
+                    showExitPopup = false;
+                    show_project_window = false;
+                    show_start_window = true;
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Save and Exit")) {
+                    segment.updateConfig(config);
+                    layerImages.clear();
+                    masksImages.clear();
+                    // Saving masks should be here
+                    layerImages.push_back(cv::imread(picsPath + "nolayerpic.png", cv::IMREAD_COLOR));
+                    masksImages.push_back(cv::imread(picsPath + "maskexample.png", cv::IMREAD_GRAYSCALE));
+                    itr = layerImages.begin();
+                    itrEnd = layerImages.size() - 1;
+                    itrm = masksImages.begin();
+                    itrmEnd = masksImages.size() - 1;
+                    glDeleteTextures(1, &imageLayerTexture);
+                    imageLayerTexture = convertMatToTexture(*itr);
+                    glDeleteTextures(1, &maskLayerTexture);
+                    maskLayerTexture = convertMatToTexture(modifyColors(*(itrm + layerNumber)));
+                    showExitPopup = false;
+                    show_project_window = false;
+                    show_start_window = true;
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("No")) {
+                    showExitPopup = false;
+                }
+                ImGui::EndPopup();
+            }
+        }
+
 
         ImGui::Render();
         int display_w, display_h;
