@@ -108,7 +108,7 @@ int main(){
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);         
 #endif
 
-    GLFWwindow* window = glfwCreateWindow(1920, 1080, "PoroMarker", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(1920, 1000, "PoroMarker", nullptr, nullptr);
     if (window == nullptr)
         return 1;
     glfwMakeContextCurrent(window);
@@ -273,8 +273,6 @@ int main(){
                     }
                     if (ImGui::MenuItem("Exit")) {
                         showExitPopup = true;
-                        // show_start_window = true;
-                        // show_project_window = false;
                     }
                     ImGui::EndMenu();
                 }
@@ -481,6 +479,7 @@ int main(){
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f));
             if (ImGui::Button("Analysis")) {
                 // Logic
+                showDummyWindow = true;
             }
             ImGui::PopItemWidth();
             ImGui::PopStyleColor();
