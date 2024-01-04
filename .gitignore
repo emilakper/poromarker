@@ -34,3 +34,4 @@
 *.obsidian
 /out
 /.vs
+/bin*/

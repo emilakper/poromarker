@@ -676,7 +676,7 @@ int main(){
             if (ImGui::BeginPopupModal("Error", &showErrorOpenPopup, ImGuiWindowFlags_AlwaysAutoResize)) {
                 ImGui::SetNextWindowSize(ImVec2(400, 0));
                 ImGui::Text("An error occurred!");
-                ImGui::TextWrapped(("This directory is not a project directory" + errorMessage).c_str());
+                ImGui::TextWrapped(("This directory is not a project directory").c_str());
                 if (ImGui::Button("OK", ImVec2(120, 0))) {
                     showErrorOpenPopup = false;
                     show_start_window = true;
