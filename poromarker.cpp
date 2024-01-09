@@ -204,7 +204,7 @@ void ProcessedWindow() {
 
         if (show_plot_x) {
             if (ImPlot::BeginPlot("XPlot")) {
-                ImPlot::SetupAxisLimits(ImAxis_X1, subvolume[0], subvolume[1], ImPlotCond_Always);
+                ImPlot::SetupAxisLimits(ImAxis_X1, 1, sizes[0], ImPlotCond_Always);
                 ImPlot::SetupAxisLimits(ImAxis_Y1, 0, sizes[1] * sizes[2] * pixel_volume, ImPlotCond_Always);
                 ImPlot::PlotBars("X_slice", x_axis.data(), x_axis.size(), 1);
                 ImPlot::EndPlot();
@@ -213,7 +213,7 @@ void ProcessedWindow() {
 
         if (show_plot_y) {
             if (ImPlot::BeginPlot("YPlot")) {
-                ImPlot::SetupAxisLimits(ImAxis_X1, subvolume[2], subvolume[3], ImPlotCond_Always);
+                ImPlot::SetupAxisLimits(ImAxis_X1, 1, sizes[1], ImPlotCond_Always);
                 ImPlot::SetupAxisLimits(ImAxis_Y1, 0, sizes[0] * sizes[2] * pixel_volume, ImPlotCond_Always);
                 ImPlot::PlotBars("Y_slice", y_axis.data(), y_axis.size(), 1);
                 ImPlot::EndPlot();
@@ -222,7 +222,7 @@ void ProcessedWindow() {
 
         if (show_plot_z) {
             if (ImPlot::BeginPlot("ZPlot")) {
-                ImPlot::SetupAxisLimits(ImAxis_X1, subvolume[4], subvolume[5], ImPlotCond_Always);
+                ImPlot::SetupAxisLimits(ImAxis_X1, 1, sizes[2], ImPlotCond_Always);
                 ImPlot::SetupAxisLimits(ImAxis_Y1, 0, sizes[0] * sizes[1] * pixel_volume, ImPlotCond_Always);
                 ImPlot::PlotBars("Z_slice", z_axis.data(), z_axis.size(), 1);
                 ImPlot::EndPlot();
