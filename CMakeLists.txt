@@ -17,6 +17,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${CMAKE_CURRENT_SOURCE_DIR}/bi
 find_package(imgui CONFIG REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(FreeGLUT CONFIG REQUIRED)
+find_package(implot CONFIG REQUIRED)
 
 include(FetchContent)
 
@@ -56,15 +58,13 @@ FetchContent_Declare(
   GIT_TAG main
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/modules/PoroAnalysis
 )
-
-FetchContent_GetProperties(poroanalysis)
-if(NOT poroanalysis_POPULATED)
-  FetchContent_Populate(poroanalysis)
-  add_subdirectory(${poroanalysis_SOURCE_DIR}/prj.cw/ObjData)
-endif()
+FetchContent_MakeAvailable(poroanalysis)
 
 add_executable(poromarker "poromarker.cpp")
 target_link_libraries(poromarker PRIVATE imgui::imgui opencv_core opencv_highgui opencv_imgproc imfilebrowser sabin ObjData_lib loader)
+target_link_libraries(poromarker PRIVATE $<IF:$<TARGET_EXISTS:FreeGLUT::freeglut>,FreeGLUT::freeglut,FreeGLUT::freeglut_static>)
+target_link_libraries(poromarker PRIVATE implot::implot)
+target_link_libraries(poromarker PRIVATE opencv_ml opencv_dnn opencv_core opencv_flann)
 
 install(TARGETS poromarker
 DESTINATION bin)

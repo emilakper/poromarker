@@ -1,4 +1,6 @@
-﻿#include <iostream>
+﻿#pragma once
+
+#include <iostream>
 #include <imgui.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_glfw.h>
@@ -39,7 +41,35 @@ void OpenURLInBrowser(const std::string& url) {
 }
 #endif
 
-static void glfw_error_callback(int error, const char* description){
+#ifdef _MSC_VER
+#pragma warning (disable: 4505)
+#endif
+
+#include <math.h> 
+#include <time.h> 
+#include <implot.h>
+#include <imgui_impl_glut.h>
+#include <imgui_impl_opengl2.h>
+#include <opencv2/core/mat.hpp>
+#include<ObjData/ObjData.hpp>
+
+#define GL_SILENCE_DEPRECATION
+#ifdef __APPLE__
+#include <GLUT/glut.h>
+#else
+#include <GL/freeglut.h>
+#endif
+
+void MainLoopStep();
+void GetData();
+void ProcessedWindow();
+void ChooseWindow();
+bool CheckSubvolume();
+void SubvolumeErrorWindow();
+void SolveMarkupErrors(std::vector <cv::Mat>);
+void TooManyErrorsWindow();
+
+static void glfw_error_callback(int error, const char* description) {
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
 
@@ -54,7 +84,7 @@ GLuint convertMatToTexture(const cv::Mat& image) {
     return imageTexture;
 }
 
-void checkLimits(int& num,int min, int max) {
+void checkLimits(int& num, int min, int max) {
     if (num < min) {
         num = min;
     }
@@ -64,17 +94,17 @@ void checkLimits(int& num,int min, int max) {
 }
 
 cv::Mat modifyColors(const cv::Mat& image) {
-    cv::Mat modifiedImage = image.clone();  
+    cv::Mat modifiedImage = image.clone();
     cv::cvtColor(modifiedImage, modifiedImage, cv::COLOR_GRAY2BGR);
     for (int y = 0; y < modifiedImage.rows; ++y) {
         cv::Vec3b* row = modifiedImage.ptr<cv::Vec3b>(y);
         for (int x = 0; x < modifiedImage.cols; ++x) {
             cv::Vec3b& color = row[x];
-            if (color == cv::Vec3b(255, 255, 255)) {  
-                color = cv::Vec3b(128, 0, 128); 
+            if (color == cv::Vec3b(255, 255, 255)) {
+                color = cv::Vec3b(128, 0, 128);
             }
-            else if (color == cv::Vec3b(0, 0, 0)) { 
-                color = cv::Vec3b(0, 255, 255); 
+            else if (color == cv::Vec3b(0, 0, 0)) {
+                color = cv::Vec3b(0, 255, 255);
             }
         }
     }
@@ -82,8 +112,323 @@ cv::Mat modifyColors(const cv::Mat& image) {
     return modifiedImage;
 }
 
+ObjData poroInfo;
+static bool show_processed_window = false;
+static bool show_plot_x = true;
+static bool show_plot_y = false;
+static bool show_plot_z = false;
+static bool show_choose_window = false;
+static bool show_sub_volume = false;
+static bool show_subvolume_error_window = false;
+std::vector<double> x_axis, y_axis, z_axis;
+static float dir_x[3]{ 1, 0, 0 };
+static float dir_y[3]{ 0, 1, 0 };
+static float dir_z[3]{ 0, 0, 1 };
+static double absolute_porosity = 0.0;
+static double relative_porosity = 0.0;
+static double pixel_volume = 0.0;
+static double sub_absolute_porosity = 0.0;
+static double sub_relative_porosity = 0.0;
+std::vector<int> sizes{ 0, 0, 0 };
+static int xs[2]{ 1, 1 };
+static int ys[2]{ 1, 1 };
+static int zs[2]{ 1, 1 };
+static int subvolume[6]{ 1, 1, 1, 1, 1, 1 };
 
-int main(){
+static bool markup_error = false;
+static bool show_too_many_errors_window = false;
+std::vector<cv::Mat> mats{};
+
+
+void GetData() {
+    sizes = poroInfo.GetSizes();
+    xs[1] = sizes[0];
+    ys[1] = sizes[1];
+    zs[1] = sizes[2];
+    subvolume[1] = sizes[0];
+    subvolume[3] = sizes[1];
+    subvolume[5] = sizes[2];
+
+    absolute_porosity = poroInfo.GetAbsolutePorosity();
+    relative_porosity = poroInfo.GetRelativePorosity();
+    pixel_volume = poroInfo.GetPixelVolume();
+
+    x_axis = poroInfo.GetPorosityDistribution(dir_x);
+    x_axis.insert(x_axis.begin(), 0);
+    y_axis = poroInfo.GetPorosityDistribution(dir_y);
+    y_axis.insert(y_axis.begin(), 0);
+    z_axis = poroInfo.GetPorosityDistribution(dir_z);
+    y_axis.insert(y_axis.begin(), 0);
+}
+
+void ProcessedWindow() {
+
+    ImVec2 Window_pos = { 180, 140 };
+    ImVec2 Window_size = { 920, 560 };
+    ImVec2 Button_size = { 100, 30 };
+
+    ImGui::SetNextWindowPos(Window_pos, ImGuiCond_Once);
+    ImGui::SetNextWindowSize(Window_size, ImGuiCond_Once);
+
+    ImGui::OpenPopup("Processed");
+
+    if (ImGui::BeginPopupModal("Processed", nullptr, 0)) {
+
+        if (ImGui::Button("XPlot", Button_size)) {
+            show_plot_y = false;
+            show_plot_z = false;
+            show_plot_x = true;
+        }
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("YPlot", Button_size)) {
+            show_plot_x = false;
+            show_plot_z = false;
+            show_plot_y = true;
+        }
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("ZPlot", Button_size)) {
+            show_plot_x = false;
+            show_plot_y = false;
+            show_plot_z = true;
+        }
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("SubVolume", Button_size)) {
+            show_choose_window = true;
+        }
+
+        if (show_plot_x) {
+            if (ImPlot::BeginPlot("XPlot")) {
+                ImPlot::SetupAxisLimits(ImAxis_X1, subvolume[0], subvolume[1], ImPlotCond_Always);
+                ImPlot::SetupAxisLimits(ImAxis_Y1, 0, sizes[1] * sizes[2] * pixel_volume, ImPlotCond_Always);
+                ImPlot::PlotBars("X_slice", x_axis.data(), x_axis.size(), 1);
+                ImPlot::EndPlot();
+            }
+        }
+
+        if (show_plot_y) {
+            if (ImPlot::BeginPlot("YPlot")) {
+                ImPlot::SetupAxisLimits(ImAxis_X1, subvolume[2], subvolume[3], ImPlotCond_Always);
+                ImPlot::SetupAxisLimits(ImAxis_Y1, 0, sizes[0] * sizes[2] * pixel_volume, ImPlotCond_Always);
+                ImPlot::PlotBars("Y_slice", y_axis.data(), y_axis.size(), 1);
+                ImPlot::EndPlot();
+            }
+        }
+
+        if (show_plot_z) {
+            if (ImPlot::BeginPlot("ZPlot")) {
+                ImPlot::SetupAxisLimits(ImAxis_X1, subvolume[4], subvolume[5], ImPlotCond_Always);
+                ImPlot::SetupAxisLimits(ImAxis_Y1, 0, sizes[0] * sizes[1] * pixel_volume, ImPlotCond_Always);
+                ImPlot::PlotBars("Z_slice", z_axis.data(), z_axis.size(), 1);
+                ImPlot::EndPlot();
+            }
+        }
+
+        ImGui::Text("Pore volume : %.3f", absolute_porosity);
+        ImGui::Text("Relative porosity : %.6f", relative_porosity);
+
+        if (show_sub_volume) {
+            ImGui::NewLine();
+            ImGui::Text("Subvolume metrics");
+            ImGui::Text("Pore volume : %.3f", sub_absolute_porosity);
+            ImGui::Text("Relative porosity : %.6f", sub_relative_porosity);
+        }
+
+        if (ImGui::Button("Close")) {
+            show_processed_window = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        if (show_choose_window)
+        {
+            ChooseWindow();
+        }
+
+        ImGui::EndPopup();
+    }
+}
+
+void ChooseWindow() {
+    ImVec2 Window_pos = { 200, 210 };
+    ImVec2 Window_size = { 300, 250 };
+
+    ImGui::SetNextWindowPos(Window_pos, ImGuiCond_Once);
+    ImGui::SetNextWindowSize(Window_size, ImGuiCond_Once);
+
+    ImGui::OpenPopup("Choose subvolume");
+
+    if (ImGui::BeginPopupModal("Choose subvolume", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Enter subvolume");
+
+        ImGui::Text("X range:");
+        ImGui::SameLine();
+        ImGui::InputInt2("  ", xs);
+        ImGui::Text("Available X range: [%d; %d]", 1, sizes[0]);
+        ImGui::NewLine();
+
+        ImGui::Text("Y range:");
+        ImGui::SameLine();
+        ImGui::InputInt2("   ", ys);
+        ImGui::Text("Available Y range: [%d; %d]", 1, sizes[1]);
+        ImGui::NewLine();
+
+        ImGui::Text("Z range:");
+        ImGui::SameLine();
+        ImGui::InputInt2("    ", zs);
+        ImGui::Text("Available Z range: [%d; %d]", 1, sizes[2]);
+        ImGui::NewLine();
+
+        if (ImGui::Button("Enter")) {
+            if (!CheckSubvolume()) {
+                show_subvolume_error_window = true;
+            }
+            else {
+                subvolume[0] = xs[0];
+                subvolume[1] = xs[1];
+                subvolume[2] = ys[0];
+                subvolume[3] = ys[1];
+                subvolume[4] = zs[0];
+                subvolume[5] = zs[1];
+                std::pair<double, double> sub_data = poroInfo.GetPartialPorosity(subvolume);
+                sub_absolute_porosity = sub_data.first;
+                sub_relative_porosity = sub_data.second;
+                show_choose_window = false;
+                show_sub_volume = true;
+                ImGui::CloseCurrentPopup();
+            }
+        }
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("Reset")) {
+            xs[0] = 1;
+            xs[1] = sizes[0];
+            ys[0] = 1;
+            ys[1] = sizes[1];
+            zs[0] = 1;
+            zs[1] = sizes[2];
+        }
+
+        if (show_subvolume_error_window) {
+            SubvolumeErrorWindow();
+        }
+
+        ImGui::EndPopup();
+    }
+}
+
+bool CheckSubvolume() {
+    if (1 <= xs[0] && xs[0] <= xs[1] && xs[1] <= sizes[0] &&
+        1 <= ys[0] && ys[0] <= ys[1] && ys[1] <= sizes[1] &&
+        1 <= zs[0] && zs[0] <= zs[1] && zs[1] <= sizes[2]) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+void SubvolumeErrorWindow() {
+    ImVec2 Window_pos = { 495, 280 };
+    ImVec2 Window_size = { 290, 80 };
+
+    ImGui::SetNextWindowPos(Window_pos, ImGuiCond_Once);
+    ImGui::SetNextWindowSize(Window_size, ImGuiCond_Once);
+
+    ImGui::OpenPopup("Error");
+
+    if (ImGui::BeginPopupModal("Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("Please enter valid subvolume bounds");
+        if (ImGui::Button("Close")) {
+            show_subvolume_error_window = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
+}
+
+void SolveMarkupErrors(std::vector<cv::Mat> mats) {
+    ImVec2 Window_pos = { 495, 280 };
+    ImVec2 Window_size = { 290, 80 };
+
+    ImGui::SetNextWindowPos(Window_pos, ImGuiCond_Once);
+    ImGui::SetNextWindowSize(Window_size, ImGuiCond_Once);
+
+    ImGui::OpenPopup("Markup error");
+
+    if (ImGui::BeginPopupModal("Markup error", nullptr, 2)) {
+        ImGui::Text("Markup error occurred on %d slices", mats.size());
+
+        if (ImGui::Button("Ignore")) {
+            markup_error = false;
+            GetData();
+            show_processed_window = true;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("Change filter")) {
+            markup_error = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("Manual marking")) {
+            if (mats.size() > 10) {
+                show_too_many_errors_window = true;
+            }
+            else {
+                markup_error = false;
+                ImGui::CloseCurrentPopup();
+            }
+        }
+
+        if (show_too_many_errors_window) {
+            TooManyErrorsWindow();
+        }
+
+        ImGui::EndPopup();
+    }
+}
+
+void TooManyErrorsWindow() {
+    ImVec2 Window_pos = { 465, 280 };
+    ImVec2 Window_size = { 350, 90 };
+
+    ImGui::SetNextWindowPos(Window_pos, ImGuiCond_Once);
+    ImGui::SetNextWindowSize(Window_size, ImGuiCond_Once);
+
+    ImGui::OpenPopup("Too many errors");
+
+    if (ImGui::BeginPopupModal("Too many errors", nullptr, 2)) {
+        ImGui::Text("There are too many markup errors.");
+        ImGui::Text("We highly recommend not to use manual marking.");
+
+        if (ImGui::Button("Still manual marking")) {
+            show_too_many_errors_window = false;
+            markup_error = false;
+        }
+
+        ImGui::SameLine();
+
+        if (ImGui::Button("Back")) {
+            show_too_many_errors_window = false;
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
+}
+
+int main() {
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit())
         return 1;
@@ -99,13 +444,13 @@ int main(){
     const char* glsl_version = "#version 150";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 #else
     // GL 3.0 + GLSL 130
     const char* glsl_version = "#version 130";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);         
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
 #endif
 
     GLFWwindow* window = glfwCreateWindow(1920, 1000, "PoroMarker", nullptr, nullptr);
@@ -117,6 +462,7 @@ int main(){
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImPlot::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.FontGlobalScale = 1.5f;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
@@ -136,9 +482,9 @@ int main(){
 
     ve::DirectoryLoader dir_loader;
 
-    ImGui::FileBrowser dirDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_MultipleSelection | 
-                                            ImGuiFileBrowserFlags_MultipleSelection | ImGuiFileBrowserFlags_CloseOnEsc |
-                                   ImGuiFileBrowserFlags_CreateNewDir);
+    ImGui::FileBrowser dirDialog(ImGuiFileBrowserFlags_SelectDirectory | ImGuiFileBrowserFlags_MultipleSelection |
+        ImGuiFileBrowserFlags_MultipleSelection | ImGuiFileBrowserFlags_CloseOnEsc |
+        ImGuiFileBrowserFlags_CreateNewDir);
     dirDialog.SetTitle("Choose folder");
     ImGui::FileBrowser fileDialog(ImGuiFileBrowserFlags_MultipleSelection | ImGuiFileBrowserFlags_CloseOnEsc);
     fileDialog.SetTitle("Choose files");
@@ -166,7 +512,7 @@ int main(){
     layerImages.push_back(cv::imread(picsPath + "nolayerpic.png", cv::IMREAD_COLOR));
     masksImages.push_back(cv::imread(picsPath + "maskexample.png", cv::IMREAD_GRAYSCALE));
     auto itr = layerImages.begin();
-    int itrEnd = layerImages.size()-1;
+    int itrEnd = layerImages.size() - 1;
     auto itrm = masksImages.begin();
     int itrmEnd = masksImages.size() - 1;
     GLuint imageLayerTexture = convertMatToTexture(*itr);
@@ -175,14 +521,14 @@ int main(){
     float oriTrans = 0.55f;
     float maskTrans = 0.9f;
 
-    const char* filters[] = { "BILATERAL", "NLM", "None"};
+    const char* filters[] = { "BILATERAL", "NLM", "None" };
     int currentFilter = 2;
     int bdc = 0;
     int filterIterations = 2;
     int filterhParam = 10;
     int ksize = 5;
     int threshold = 128;
-    const char* thresholds[] = { "BINARY", "OTSU", "MEAN_STD_DEV", "KAPUR"};
+    const char* thresholds[] = { "BINARY", "OTSU", "MEAN_STD_DEV", "KAPUR" };
     int currentThreshold = 0;
 
     bool mode = false;
@@ -219,8 +565,8 @@ int main(){
     cursimage.height = cursorHeight;
     cursimage.pixels = cursorData;
     GLFWcursor* customCursor = glfwCreateCursor(&cursimage, cursorWidth / 2, cursorHeight / 2);
-    
-    while (!glfwWindowShouldClose(window)){
+
+    while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
@@ -228,37 +574,37 @@ int main(){
 
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
-        
+
         if (show_start_window)
         {
             ImVec2 size(230, 375);
             ImGui::SetNextWindowSize(size, ImGuiCond_Once);
             ImGui::SetNextWindowPos(ImVec2((ImGui::GetIO().DisplaySize.x - size.x) * 0.5f, (ImGui::GetIO().DisplaySize.y - size.y) * 0.5f));
-            ImGui::Begin("Welcome to PoroMarker",nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
-            ImGui::SetWindowFontScale(1.0f*(ImGui::GetIO().DisplaySize.y / 1080));
+            ImGui::Begin("Welcome to PoroMarker", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
+            ImGui::SetWindowFontScale(1.0f * (ImGui::GetIO().DisplaySize.y / 1080));
             ImGui::Text("Choose an option.");
             ImGui::NewLine();
-            if (ImGui::Button("Create project")){
+            if (ImGui::Button("Create project")) {
                 projDirDialog.Open();
             }
-            if (ImGui::Button("Open project")){
+            if (ImGui::Button("Open project")) {
                 projOpenDirDialog.Open();
             }
-            if (ImGui::Button("Help")){
+            if (ImGui::Button("Help")) {
                 OpenURLInBrowser(url);
             }
             ImGui::Image((void*)(intptr_t)imageTexture, ImVec2(image.size().width, image.size().height));
             ImGui::End();
         }
-        
+
         if (show_project_window) {
             int width, height;
             glfwGetFramebufferSize(window, &width, &height);
             ImVec2 size(static_cast<float>(width), static_cast<float>(height));
             ImGui::SetNextWindowSize(size);
             ImGui::SetNextWindowPos(ImVec2((ImGui::GetIO().DisplaySize.x - size.x) * 0.5f, (ImGui::GetIO().DisplaySize.y - size.y)));
-            ImGui::Begin("Project", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse 
-                                            | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar);
+            ImGui::Begin("Project", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse
+                | ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoTitleBar);
             if (ImGui::BeginMenuBar()) {
                 if (ImGui::BeginMenu("Project")) {
                     if (ImGui::MenuItem("Open folder")) {
@@ -321,12 +667,12 @@ int main(){
             else {
                 ImVec2 p0 = ImGui::GetCursorScreenPos();
                 ImVec2 p1 = ImVec2(p0.x + height - 100, p0.y + height - 100);
-                ImVec4 tint = ImVec4(1.0f, 1.0f, 1.0f, oriTrans); 
+                ImVec4 tint = ImVec4(1.0f, 1.0f, 1.0f, oriTrans);
                 drawList->AddImage((void*)(intptr_t)imageLayerTexture, p0, p1, ImVec2(0, 0), ImVec2(1, 1), ImColor(tint));
 
                 p0 = ImGui::GetCursorScreenPos();
                 p1 = ImVec2(p0.x + height - 100, p0.y + height - 100);
-                tint = ImVec4(1.0f, 1.0f, 1.0f, maskTrans); 
+                tint = ImVec4(1.0f, 1.0f, 1.0f, maskTrans);
                 drawList->AddImage((void*)(intptr_t)maskLayerTexture, p0, p1, ImVec2(0, 0), ImVec2(1, 1), ImColor(tint));
                 ImGui::SetCursorScreenPos(ImVec2(p0.x, p1.y));
             }
@@ -477,10 +823,25 @@ int main(){
             ImGui::SameLine();
 
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.8f, 0.2f, 1.0f));
+
             if (ImGui::Button("Analysis")) {
-                // Logic
-                showDummyWindow = true;
+                glfwSetCursor(window, customCursor);
+                poroInfo.UpdateObject(masksImages);
+                GetData();
+                glfwSetCursor(window, NULL);
+                show_processed_window = true;
+                /*
+                 mats = GetMarkupError();
+                 if (mats.size() != 0) {
+                     markup_error = true;
+                 }
+                 else {
+                     GetData();
+                     show_processed_window = true;
+                 }
+                 */
             }
+
             ImGui::PopItemWidth();
             ImGui::PopStyleColor();
 
@@ -513,6 +874,16 @@ int main(){
             ImGui::End();
         }
 
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        if (markup_error) {
+            SolveMarkupErrors(mats);
+        }
+
+        if (show_processed_window) {
+            ProcessedWindow();
+        }
+        //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
         if (showDummyWindow) {
             ImGui::OpenPopup("Dummy Window");
             if (ImGui::BeginPopupModal("Dummy Window", &showDummyWindow, ImGuiWindowFlags_AlwaysAutoResize)) {
@@ -525,7 +896,7 @@ int main(){
                 ImGui::EndPopup();
             }
         }
-        
+
         dirDialog.Display();
         if (dirDialog.HasSelected())
         {
@@ -749,7 +1120,7 @@ int main(){
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
-
+    ImPlot::DestroyContext();
     glfwDestroyWindow(window);
     glfwTerminate();
 }
