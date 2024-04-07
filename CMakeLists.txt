@@ -22,10 +22,10 @@ find_package(implot CONFIG REQUIRED)
 
 include(FetchContent)
 
-set(GITHUB_TOKEN_1 "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")
-set(GITHUB_TOKEN_2 "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")
-set(GITHUB_TOKEN_3 "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")
-set(GITHUB_TOKEN_4 "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")
+set(GITHUB_TOKEN_1 "here was READ-ONLY TOKEN")
+set(GITHUB_TOKEN_2 "here was READ-ONLY TOKEN")
+set(GITHUB_TOKEN_3 "here was READ-ONLY TOKEN")
+set(GITHUB_TOKEN_4 "here was READ-ONLY TOKEN")
 option(BUILD_ONLY_LIBRARY "Building libraries" on)
 
 FetchContent_Declare(
