@@ -23,6 +23,18 @@
    - Отображение результатов сегментации на изображениях.
    - Построение проволочной модели дыхательных путей
 
+Скриншоты и демо-видео:
+
+![pic1](https://github.com/user-attachments/assets/a8f01930-1c4f-49de-8c19-86f48fe0dfbb)
+
+![pic2](https://github.com/user-attachments/assets/a6e28420-ca68-47b7-bb90-b0ba30a4d659)
+
+![pic3](https://github.com/user-attachments/assets/19af96a6-09bb-4adf-9ffd-ab59bfe18a23)
+
+![pic4](https://github.com/user-attachments/assets/b7c6f940-59cf-4011-a523-05f16f73a9d4)
+
+https://github.com/user-attachments/assets/b22c8fff-eac1-46b4-a7b3-25e7eafc7232
+
 
 | Глобальная задача                                                   | ФИО       | Внутренние задачи                                                          |
 | ------------------------------------------------------------------- | --------- | -------------------------------------------------------------------------- |
